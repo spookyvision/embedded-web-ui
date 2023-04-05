@@ -136,14 +136,16 @@ async fn main() -> eyre::Result<()> {
 
     let mut listenfd = ListenFd::from_env();
 
+    let port = 3030;
     let server = if let Some(l) = listenfd.take_tcp_listener(0).unwrap() {
         axum::Server::from_tcp(l)?
     } else {
-        let addr = SocketAddr::from(([127, 0, 0, 1], 3030));
+        let addr = SocketAddr::from(([127, 0, 0, 1], port));
         axum::Server::bind(&addr)
     };
 
     debug!("startup complete: {:?}", server);
+    info!("listening on port {port}");
     server.serve(app.into_make_service()).await.unwrap();
     Ok(())
 }
@@ -167,6 +169,12 @@ async fn do_websocket(stream: WebSocket, state: Arc<AppState>, user_agent: UserA
     let mut to_websocket_rx = tokio_stream::wrappers::BroadcastStream::new(to_websocket_rx);
 
     let to_serial_tx = state.to_serial.clone();
+
+    // BUG/workaround in dioxus websocket context - need to initialize state with a server hello
+    to_websocket_tx
+        .send(ws::Message::Text("hello".to_string()))
+        .await
+        .ok();
 
     // This task will receive messages from the mcu and send them to broadcast subscribers ("browser windows").
     // TODO would rather use .forward()
@@ -272,9 +280,15 @@ async fn uart_launcher_loop(port_name: Option<String>, app_state: Arc<AppState>)
     let to_serial = app_state.to_serial.clone();
     let from_serial_tx = app_state.from_serial_tx.clone();
     loop {
-        if let Ok(stream) = serial::open_tty(port_name.clone()) {
-            if let Err(e) = uart_inner(stream, to_serial.clone(), from_serial_tx.clone()).await {
-                warn!("serial device threw up: {e:?}");
+        match serial::open_tty(port_name.clone()) {
+            Ok(stream) => {
+                if let Err(e) = uart_inner(stream, to_serial.clone(), from_serial_tx.clone()).await
+                {
+                    warn!("serial device threw up: {e:?}");
+                }
+            }
+            Err(e) => {
+                warn!("could not open a serial device: {e:?}");
             }
         }
 

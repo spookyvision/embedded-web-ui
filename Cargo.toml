@@ -5,8 +5,14 @@ edition = "2021"
 
 [workspace]
 members = ["web-app", "serial-ws-bridge"]
-exclude = ["ws-py"]
+exclude = ["ws-py", "stm32f4-app"]
+
 
 [dependencies]
-heapless = { version = "0.7.16", features = ["serde"] }
-serde = "1"
+defmt = { version = "=0.3.2", optional = true }
+heapless = { version = "0.7", default-features = false }
+serde = { version = "1", default_features = false, features = ["derive"] }
+
+[features]
+std = []
+defmt = ["dep:defmt"]

@@ -46,11 +46,7 @@ async def producer_handler(websocket, path):
     print("...")
 
     slerp = 0.05
-    s = 0.9
-    v = 0.1
-    l = 8
-    x = 0
-    y = 0
+
     quit = False
     do_coro = True
 
@@ -77,37 +73,12 @@ async def producer_handler(websocket, path):
             print("bye")
             quit = True
             break
-        elif key == keys.A:
-            print("subscribing to admin")
-            await websocket.send(json.dumps({"Subscribe": "Admin"}))
-        elif key == keys.M:
-            print("subscribing to midi")
-            await websocket.send(json.dumps({"Subscribe": "Midi"}))
-        elif key == keys.D:
-            print("subscribing to dmx")
-            await websocket.send(json.dumps({"Subscribe": {"Queue": "dmx"}}))
-        elif key == keys.R:
-            print("*resync*")
-            await websocket.send('"Resync"')
-        elif key == keys.L:
-            print("*relatch*")
-            await websocket.send('"Relatch"')
-        # some pixelz for the matrixz
         elif key == keys.SPACE:
             await websocket.send('very long Soup')
         elif key == keys.X:
             await websocket.send('just x')
-        elif key == keys.O:
-            do_coro = True
-            asyncio.create_task(coro(0))
-        elif key == keys.K:
-            do_coro = True
-            asyncio.create_task(coro(1))
         elif key == keys.I:
             do_coro = False
-        else:
-            print("sending tarp")
-            await websocket.send('"Tap"')
 
 
 async def handler(websocket, path):

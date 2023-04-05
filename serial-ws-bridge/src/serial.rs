@@ -1,7 +1,7 @@
 use bytes::BytesMut;
-use log::debug;
 use tokio_serial::{SerialPortBuilderExt, SerialStream};
 use tokio_util::codec::{Decoder, Encoder};
+use tracing::{debug, info, warn};
 
 pub(crate) struct NullSepCodec;
 
@@ -29,34 +29,42 @@ impl Encoder<Vec<u8>> for NullSepCodec {
 }
 
 pub(crate) fn open_tty(arg: Option<String>) -> eyre::Result<SerialStream> {
-    #[cfg(target_os = "linux")]
-    let default = "/dev/ttyUSB*";
-    #[cfg(target_os = "macos")]
-    let default = "/dev/cu.usb*";
-    #[cfg(target_os = "windows")]
-    let default = "COM1";
+    // try to be smart about OS dependent device names... but why, there's available_ports()
+    // #[cfg(target_os = "linux")]
+    // let default = "/dev/ttyUSB*";
+    // #[cfg(target_os = "macos")]
+    // let default = "/dev/cu.usb*";
+    // #[cfg(target_os = "windows")]
+    // let default = "COM1";
 
-    let tty_pattern = arg.as_deref().unwrap_or_else(|| default);
+    // let tty_pattern = arg.as_deref().unwrap_or_else(|| default);
+    // for candidate in glob::glob(tty_pattern)? {
+    //     match &candidate {
 
-    for candidate in glob::glob(tty_pattern)? {
-        match &candidate {
-            Ok(dev_path_buf) => {
-                let dev = dev_path_buf.as_path().to_string_lossy();
-                debug!("opening {dev}");
-                match tokio_serial::new(dev.clone(), 115_200).open_native_async() {
-                    Ok(mut stream) => {
-                        // the tokio-serial example sets this, but it doesn't jive well with e.g. micropython's cdc
-                        // #[cfg(unix)]
-                        // stream
-                        //     .set_exclusive(false)
-                        //     .expect("Unable to set serial port exclusive to false");
-                        debug!("ok!");
-                        return Ok(stream);
-                    }
-                    Err(e) => log::warn!("error opening {dev}: {e}"),
-                }
+    let ports = match arg {
+        Some(port) => vec![port],
+
+        // filter out macos builtin bluetooth "ports"
+        None => tokio_serial::available_ports()?
+            .iter()
+            .map(|port| port.port_name.clone())
+            .filter(|port| !port.to_lowercase().contains("bluetooth"))
+            .collect(),
+    };
+
+    for port in ports {
+        info!("opening {port}");
+        match tokio_serial::new(&port, 115_200).open_native_async() {
+            Ok(stream) => {
+                // the tokio-serial example sets this, but it doesn't seem to get along with e.g. micropython's cdc
+                // #[cfg(unix)]
+                // stream
+                //     .set_exclusive(false)
+                //     .expect("Unable to set serial port exclusive to false");
+                debug!("ok!");
+                return Ok(stream);
             }
-            Err(e) => return Err(eyre::eyre!("glob error with {candidate:?}: {e}")),
+            Err(e) => warn!("error opening {port}: {e}"),
         }
     }
 

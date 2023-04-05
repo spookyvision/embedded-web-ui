@@ -14,9 +14,12 @@ chrono = { version = "0.4", features = ["wasmbind"] }
 #fermi = "0.3"
 gloo = { version = "0.8", features = ["futures"] }
 im-rc = "15.1.0"
-
-embedded-web-ui = { path = ".." }
+embedded-web-ui = { path = "..", features = ["std"] }
 
 # WebAssembly Debug
 wasm-logger = "0.2.0"
 console_error_panic_hook = "0.1.7"
+dioxus-websocket-hooks = { path = "/Users/ace/play/co/dioxus-websocket-hooks" }
+postcard = { version = "1.0.4", features = ["use-std"] }
+serde = { version = "1.0.159", default_features = false, features = ["derive"] }
+futures = "0.3.28"

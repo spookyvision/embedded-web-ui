@@ -1,13 +1,14 @@
 use dioxus::prelude::*;
-
+use dioxus_websocket_hooks::{use_ws_context, Message};
+use embedded_web_ui::{Id, Input, SliderVal};
 pub(crate) type SliderVars = im_rc::HashMap<String, f32>;
 
 #[allow(non_snake_case)]
 #[inline_props]
-pub(crate) fn UiSlider(cx: Scope, name: String, vars: UseState<SliderVars>) -> Element {
+pub(crate) fn UiSlider(cx: Scope, id: Id, name: String, vars: UseState<SliderVars>) -> Element {
     const SCALE: f32 = 100.0;
-
     let val = vars.get().get(name.as_str()).cloned().unwrap_or_default();
+    let ws_cx = use_ws_context(&cx);
     cx.render(rsx!(
         input {
             r#type: "range",
@@ -18,6 +19,8 @@ pub(crate) fn UiSlider(cx: Scope, name: String, vars: UseState<SliderVars>) -> E
                 let new_val = ev.value.parse::<f32>().unwrap_or_default() / SCALE;
                 log::debug!("change {name} {new_val}");
                 vars.with_mut(|vars| {vars.insert(name.clone(), new_val); });
+                let input = Input::Slider(*id, (new_val*SliderVal::MAX as f32) as SliderVal);
+                ws_cx.send(Message::Bytes(postcard::to_allocvec_cobs(&input).unwrap()));
             },
         }
         label {
