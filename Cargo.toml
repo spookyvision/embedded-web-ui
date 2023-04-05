@@ -1,0 +1,12 @@
+[package]
+name = "embedded-web-ui"
+version = "0.1.0"
+edition = "2021"
+
+[workspace]
+members = ["web-app", "serial-ws-bridge"]
+exclude = ["ws-py"]
+
+[dependencies]
+heapless = { version = "0.7.16", features = ["serde"] }
+serde = "1"

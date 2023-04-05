@@ -1,5 +1,5 @@
 [package]
-name = "b2"
+name = "serial-ws-bridge"
 version = "0.1.0"
 edition = "2021"
 
