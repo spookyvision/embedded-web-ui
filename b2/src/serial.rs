@@ -45,10 +45,11 @@ pub(crate) fn open_tty(arg: Option<String>) -> eyre::Result<SerialStream> {
                 debug!("opening {dev}");
                 match tokio_serial::new(dev.clone(), 115_200).open_native_async() {
                     Ok(mut stream) => {
-                        #[cfg(unix)]
-                        stream
-                            .set_exclusive(false)
-                            .expect("Unable to set serial port exclusive to false");
+                        // the tokio-serial example sets this, but it doesn't jive well with e.g. micropython's cdc
+                        // #[cfg(unix)]
+                        // stream
+                        //     .set_exclusive(false)
+                        //     .expect("Unable to set serial port exclusive to false");
                         debug!("ok!");
                         return Ok(stream);
                     }

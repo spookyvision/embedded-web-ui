@@ -1,12 +1,15 @@
-use futures::{stream::StreamExt, SinkExt, TryStreamExt};
+use futures::{
+    stream::{Forward, StreamExt},
+    SinkExt, TryStreamExt,
+};
 use listenfd::ListenFd;
-use sender_sink::wrappers::{SinkError, UnboundedSenderSink};
+use pretty_hex::pretty_hex;
+use sender_sink::wrappers::UnboundedSenderSink;
 use std::{
     collections::HashMap,
     env,
     io::{self, ErrorKind},
     net::SocketAddr,
-    str::{self, from_utf8},
     sync::{
         atomic::{AtomicUsize, Ordering},
         Arc, RwLock,
@@ -28,7 +31,7 @@ use tower_http::{
     cors::CorsLayer,
     trace::{DefaultMakeSpan, TraceLayer},
 };
-use tracing::{debug, error, info};
+use tracing::{debug, error, info, warn};
 
 use axum::{
     extract::{
@@ -89,17 +92,32 @@ async fn main() -> eyre::Result<()> {
 
     let mut args = env::args();
 
-    let uart_dev = args.nth(1);
+    let serial_dev = args.nth(1);
 
-    let (to_websocket_tx, to_websocket_rx) = broadcast::channel(100);
-    let (to_serial_tx, to_serial_rx) = broadcast::channel(100);
+    // the rx part is created later
+    let (to_websocket_tx, _) = broadcast::channel(100);
+    // the rx part is created later
+    let (to_serial_tx, _) = broadcast::channel(100);
     let (from_serial_tx, from_serial_rx) = mpsc::unbounded_channel();
 
-    let forward_serial_to_websocket =
-        UnboundedReceiverStream::new(from_serial_rx).forward(to_websocket_tx.clone().into());
+    // TODO can't do that, apparently :|
+    // let forward_serial_to_websocket =
+    //     UnboundedReceiverStream::new(from_serial_rx).forward(to_websocket_tx.into());
+
+    let _forward_serial_to_websocket_task = {
+        let to_websocket_tx = to_websocket_tx.clone();
+        tokio::spawn(async move {
+            let mut from_serial_rx = UnboundedReceiverStream::new(from_serial_rx);
+            while let Some(item) = from_serial_rx.next().await {
+                debug!("serial>ws {}", pretty_hex(&item));
+                // TODO ok()
+                to_websocket_tx.send(item).ok();
+            }
+        })
+    };
 
     let app_state = Arc::new(AppState::new(to_websocket_tx, to_serial_tx, from_serial_tx));
-    let _uart = tokio::spawn(uart_launcher_loop(uart_dev, app_state.clone()));
+    let _serial_task = tokio::spawn(uart_launcher_loop(serial_dev, app_state.clone()));
     let app = Router::new()
         .route("/", get(websocket_handler))
         .layer(Extension(app_state.clone()))
@@ -148,17 +166,17 @@ async fn do_websocket(stream: WebSocket, state: Arc<AppState>, user_agent: UserA
     let to_websocket_rx = state.to_websocket.subscribe();
     let mut to_websocket_rx = tokio_stream::wrappers::BroadcastStream::new(to_websocket_rx);
 
+    let to_serial_tx = state.to_serial.clone();
+
+    // This task will receive messages from the mcu and send them to broadcast subscribers ("browser windows").
+    // TODO would rather use .forward()
     let mut send_task = tokio::spawn(async move {
         loop {
-            debug!("shoop da loop {}", client_id);
-            while let Some(broadcast_msg) = to_websocket_rx.next().await {
-                match broadcast_msg {
-                    Ok(broadcast_msg) => {
-                        let debug_hex = pretty_hex::pretty_hex(&broadcast_msg);
-                        debug!("bc to {client_id}: {debug_hex}");
-                        to_websocket_tx
-                            .send(ws::Message::Binary(broadcast_msg))
-                            .await;
+            while let Some(to_ws) = to_websocket_rx.next().await {
+                match to_ws {
+                    Ok(to_ws) => {
+                        // TODO ok()
+                        to_websocket_tx.send(ws::Message::Binary(to_ws)).await.ok();
                     }
                     Err(e) => {
                         error!("{e:?}");
@@ -169,20 +187,18 @@ async fn do_websocket(stream: WebSocket, state: Arc<AppState>, user_agent: UserA
         }
     });
 
-    let task_state = state.clone();
-
-    // This task will receive messages from the mcu and send them to broadcast subscribers ("browser windows").
+    // This task will receive messages from browser window(s) and send them to the mcu.
+    // TODO would rather use .forward()
     let mut recv_task = tokio::spawn(async move {
         while let Some(Ok(msg)) = from_websocket_rx.next().await {
-            debug!("hey! listen! {:?}", msg);
-            let client_message: Option<Result<String, eyre::Report>> = match &msg {
+            let client_message: Option<Result<Vec<u8>, eyre::Report>> = match &msg {
                 Message::Text(text) => {
                     debug!("Text");
-                    Some(Ok(text.clone()))
+                    Some(Ok(text.as_bytes().into()))
                 }
                 Message::Binary(data) => {
                     debug!("Binary");
-                    None
+                    Some(Ok(data.clone()))
                 }
                 Message::Ping(_) => {
                     debug!("PING");
@@ -202,11 +218,11 @@ async fn do_websocket(stream: WebSocket, state: Arc<AppState>, user_agent: UserA
                     error!("could not parse client message: {:#?} {:#?}", msg, oh_no)
                 }
                 Some(Ok(client_message)) => {
-                    debug!("received from {client_id}: {client_message}");
-                    // task_state
-                    //     .internal_tx
-                    //     .send((client_id, client_message, local_tx.clone()))
-                    //     .ok();
+                    let msg = pretty_hex(&client_message);
+                    debug!("ws[{client_id}]>serial: {msg}");
+
+                    // TODO ok()
+                    to_serial_tx.send(client_message).ok();
                 }
                 _ => {}
             }
@@ -226,19 +242,25 @@ async fn do_websocket(stream: WebSocket, state: Arc<AppState>, user_agent: UserA
 
 async fn uart_inner(
     stream: SerialStream,
-    to_uart: broadcast::Sender<ServerMessage>,
+    to_serial_tx: broadcast::Sender<ServerMessage>,
     from_serial_tx: UnboundedSender<ServerMessage>,
 ) -> eyre::Result<()> {
     let (tx, mut rx) = serial::NullSepCodec.framed(stream).split();
-    let to_serial_rx = BroadcastStream::new(to_uart.subscribe())
-        .map_err(|e| io::Error::new(ErrorKind::Other, "TODO"));
+    // TODO weird error stuff
+    let to_serial_rx = BroadcastStream::new(to_serial_tx.subscribe()).map_err(|e| {
+        let inner_error = format!("{e:?}");
+        io::Error::new(ErrorKind::Other, inner_error)
+    });
 
     let to_serial_stream = to_serial_rx.forward(tx);
 
-    let from_serial_tx: UnboundedSenderSink<ServerMessage> = from_serial_tx.into();
+    let from_serial_tx: UnboundedSenderSink<_> = from_serial_tx.into();
 
-    let from_serial_stream =
-        rx.forward(from_serial_tx.sink_map_err(|e| io::Error::new(ErrorKind::Other, "TODO")));
+    // TODO weird error stuff
+    let from_serial_stream = rx.forward(from_serial_tx.sink_map_err(|e| {
+        let inner_error = format!("{e:?}");
+        io::Error::new(ErrorKind::Other, inner_error)
+    }));
 
     tokio::try_join!(to_serial_stream, from_serial_stream)?;
 
@@ -252,7 +274,7 @@ async fn uart_launcher_loop(port_name: Option<String>, app_state: Arc<AppState>)
     loop {
         if let Ok(stream) = serial::open_tty(port_name.clone()) {
             if let Err(e) = uart_inner(stream, to_serial.clone(), from_serial_tx.clone()).await {
-                error!("{e:?}");
+                warn!("serial device threw up: {e:?}");
             }
         }
 
