@@ -6,7 +6,7 @@ Control an embedded application (or anything, really) using a browser, which tal
 ## High level usage
 
 - You need a serial device connected to the host.
-- Describe your desired UI primitives (buttons, sliders, charts, etc.) in your embedded application and send them out over this connection. Same goes for data updates (chart time series ticks, bar data).
+- Describe your desired UI primitives (buttons, sliders, charts, etc.) in your embedded application and send them out over this connection. Same goes for data updates (chart time series ticks, bar data). The list **MUST** start with a `Reset`.
 - These widgets are then displayed on a web page. User interactions (button press, slider value change, ...) are sent back to the device.
 
 ## Running
@@ -42,4 +42,8 @@ finally, connect the serial device and enjoy your remote UI!
 ## UI details
 
 - available primitives: see `/src/lib.rs`.
-- TODO example
+
+
+## example stm32f4 app
+
+extremely proof of concept only, to avoid collisions between usb setup and app code it waits for a UI Input packet before sending out its UI commands, but that's absolutely not a general requirement. Because of this limitation though you need to press a dummy button in the web app once before the actual UI appears.
