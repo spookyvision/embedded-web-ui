@@ -1,8 +1,8 @@
 #![allow(non_snake_case)]
 
-use dioxus::{prelude::*, };
-use dioxus_websocket_hooks::{use_ws_context_provider, Message, use_ws_context};
-use embedded_web_ui::{ Command, UI, WidgetKind, Widget, Input, Id};
+use dioxus::prelude::*;
+use dioxus_websocket_hooks::{use_ws_context, use_ws_context_provider, Message};
+use embedded_web_ui::{Command, Id, Input, Widget, WidgetKind, UI};
 use futures::stream::StreamExt;
 mod components;
 use components::*;
@@ -17,13 +17,11 @@ fn main() {
     dioxus_web::launch(app);
 }
 
-
 #[wasm_bindgen]
 extern "C" {
     #[wasm_bindgen]
     fn btoa(s: &str) -> String;
 }
-
 
 #[wasm_bindgen]
 extern "C" {
@@ -31,19 +29,13 @@ extern "C" {
     fn init_chart(id: Id);
 }
 
-
 #[wasm_bindgen]
 extern "C" {
     #[wasm_bindgen]
     fn update(id: Id, data: Vec<u8>);
 }
 
-
-fn use_ws_context_provider_binary(
-    cx: &ScopeState,
-    url: &str,
-    handler: impl Fn(Vec<u8>) + 'static,
-) {
+fn use_ws_context_provider_binary(cx: &ScopeState, url: &str, handler: impl Fn(Vec<u8>) + 'static) {
     let handler = move |msg| {
         if let Message::Bytes(data) = msg {
             handler(data)
@@ -51,83 +43,77 @@ fn use_ws_context_provider_binary(
             debug!("no handler for {msg:?}");
         }
     };
-    
+
     use_ws_context_provider(cx, url, handler)
 }
 
-
 fn app(cx: Scope) -> Element {
-    debug!("hey");
-    let res = unsafe {
-         btoa("awerawreawre")
-    };
-    debug!("hey {res}");
+    // TODO use_ref, remove im_rc
     let slider_vars = use_state(&cx, SliderVars::default);
+    let charts = use_ref(cx, || HashSet::new());
 
-
-    // TODO use im_rc
-    let ui_items = use_state(cx, || {
-        let res: Vec<UI> = vec![
-            UI::Widget(Widget{kind: WidgetKind::Button, label: "plz refresh".into(), id: 0}),
-            ];
+    let ui_items = use_ref(cx, || {
+        let res: Vec<UI> = vec![UI::Widget(Widget {
+            kind: WidgetKind::Button,
+            label: "plz refresh".into(),
+            id: 0,
+        })];
         res
     });
 
-
-    let update_ui = use_coroutine(
-        &cx,
-        |mut rx: UnboundedReceiver<UI>| {
-            to_owned![ui_items];
-            async move {
-                while let Some(ui_elem) = rx.next().await {
-                    debug!("got new UI! {ui_elem:?}");
-                    ui_items.modify(|items| {
-                        let mut items = items.clone();
-                        items.push(ui_elem);
-                        items
-                    });
-                }
+    let update_ui = use_coroutine(&cx, |mut rx: UnboundedReceiver<UI>| {
+        to_owned![ui_items];
+        async move {
+            while let Some(ui_elem) = rx.next().await {
+                debug!("got new UI! {ui_elem:?}");
+                ui_items.with_mut(|items| items.push(ui_elem));
             }
-        },
-    )
+        }
+    })
     .to_owned();
-    
+
     let ws = use_ws_context_provider_binary(cx, "ws://localhost:3030", {
-        to_owned![ui_items]; 
-        move |mut d|  {
+        to_owned![ui_items, charts];
+        move |mut d| {
             if let Ok(commands) = postcard::from_bytes_cobs::<Vec<Command>>(d.as_mut_slice()) {
                 for command in commands {
                     match command {
                         Command::Log => todo!(),
                         Command::Reset => {
                             info!("RESET");
-                            ui_items.modify(|_| vec![]);
-                        },
+                            charts.with_mut(|charts| charts.clear());
+                            ui_items.with_mut(|items| items.clear());
+                        }
                         Command::UI(ui) => {
-                            update_ui.send(ui)
-                        },
+                            update_ui.send(ui.clone());
+                        }
                         Command::TimeSeriesData(_) => todo!(),
                         Command::BarData(data) => {
                             let id = data.id;
-                            init_chart(data.id);
-                            debug!("got bar data {data:?}");
+
+                            if !charts.read().contains(&id) {
+                                debug!("bcsssss");
+                                charts.with_mut(|charts| charts.insert(id));
+                                init_chart(id);
+                            }
                             let mut res = vec![];
                             res.extend(&data.vals);
                             update(data.id, res);
-                        },
+                        }
                     }
-                } 
+                }
             }
-            }
-        });
+        }
+    });
+
     let ws_cx = use_ws_context(&cx);
 
+    let ui_items_it = ui_items.read();
     cx.render(rsx! (
-        div {
-            style: "text-align: center;",
+        div { style: "text-align: center;",
             h1 { "embedded-web-ui" }
             div {
-                ui_items.iter().map(|item| match item {
+                ui_items_it.iter().map(|item| match item {
                     UI::Widget(widget) => {
                         to_owned![ws_cx];
                         let label = &widget.label;
@@ -164,7 +150,7 @@ fn app(cx: Scope) -> Element {
                     UI::Break => rsx!{ br{} },
                     _ => rsx!{"TODO"}
                 })
-            }     
+            }
         }
     ))
 }

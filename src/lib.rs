@@ -9,8 +9,8 @@ pub type ChartVal = u8;
 pub type SliderVal = u8;
 pub const CHART_BARS: usize = 64;
 
-#[derive(Serialize, Deserialize)]
-#[cfg_attr(feature = "std", derive(Debug))]
+#[derive(Serialize, Deserialize, Clone, PartialEq, Eq)]
+#[cfg_attr(feature = "std", derive(Debug, Hash))]
 #[cfg_attr(feature = "defmt", derive(Format))]
 pub enum Command {
     Log, // TODO - defmt payload goes here
@@ -20,24 +20,24 @@ pub enum Command {
     BarData(BarData),
 }
 
-#[derive(Serialize, Deserialize)]
-#[cfg_attr(feature = "std", derive(Debug))]
+#[derive(Serialize, Deserialize, Clone, PartialEq, Eq)]
+#[cfg_attr(feature = "std", derive(Debug, Hash))]
 #[cfg_attr(feature = "defmt", derive(Format))]
 pub enum Input {
     Click(Id),
     Slider(Id, SliderVal),
 }
 
-#[derive(Serialize, Deserialize, Clone)]
-#[cfg_attr(feature = "std", derive(Debug))]
+#[derive(Serialize, Deserialize, Clone, PartialEq, Eq)]
+#[cfg_attr(feature = "std", derive(Debug, Hash))]
 #[cfg_attr(feature = "defmt", derive(Format))]
 pub enum UI {
     Widget(Widget),
     Break,
 }
 
-#[derive(Serialize, Deserialize)]
-#[cfg_attr(feature = "std", derive(Debug))]
+#[derive(Serialize, Deserialize, Clone, PartialEq, Eq)]
+#[cfg_attr(feature = "std", derive(Debug, Hash))]
 #[cfg_attr(feature = "defmt", derive(Format))]
 pub struct TimeSeriesData {
     pub id: Id,
@@ -45,24 +45,23 @@ pub struct TimeSeriesData {
     pub val: ChartVal,
 }
 
-#[derive(Serialize, Deserialize)]
-#[cfg_attr(feature = "std", derive(Debug))]
+#[derive(Serialize, Deserialize, Clone, PartialEq, Eq)]
+#[cfg_attr(feature = "std", derive(Debug, Hash))]
 #[cfg_attr(feature = "defmt", derive(Format))]
 pub struct BarData {
     pub id: Id,
     pub vals: heapless::Vec<ChartVal, CHART_BARS>,
 }
 
-#[derive(Serialize, Deserialize)]
-#[cfg_attr(feature = "std", derive(Debug))]
+#[derive(Serialize, Deserialize, Clone, PartialEq, Eq)]
+#[cfg_attr(feature = "std", derive(Debug, Hash))]
 #[cfg_attr(feature = "defmt", derive(Format))]
 pub enum UIInput {
     Button(Id),
     Slider(Id, SliderVal),
 }
-
-#[derive(Serialize, Deserialize, Clone)]
-#[cfg_attr(feature = "std", derive(Debug))]
+#[derive(Serialize, Deserialize, Clone, PartialEq, Eq)]
+#[cfg_attr(feature = "std", derive(Debug, Hash))]
 #[cfg_attr(feature = "defmt", derive(Format))]
 pub struct Widget {
     pub kind: WidgetKind,
@@ -70,8 +69,8 @@ pub struct Widget {
     pub id: Id,
 }
 
-#[derive(Serialize, Deserialize, Clone)]
-#[cfg_attr(feature = "std", derive(Debug))]
+#[derive(Serialize, Deserialize, Clone, PartialEq, Eq)]
+#[cfg_attr(feature = "std", derive(Debug, Hash))]
 #[cfg_attr(feature = "defmt", derive(Format))]
 pub enum WidgetKind {
     TimeSeriesChart,
