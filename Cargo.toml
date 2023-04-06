@@ -12,7 +12,16 @@ exclude = ["ws-py", "stm32f4-app"]
 defmt = { version = "=0.3.2", optional = true }
 heapless = { version = "0.7", default-features = false }
 serde = { version = "1", default_features = false, features = ["derive"] }
+postcard = { version = "1.0.4", features = ["use-std"], optional = true }
+
+[dev-dependencies]
+postcard = { version = "1.0.4", features = ["use-std"] }
 
 [features]
 std = []
 defmt = ["dep:defmt"]
+postcard = ["dep:postcard"]
+
+[[bin]]
+name = "sizes"
+required-features = ["postcard"]
