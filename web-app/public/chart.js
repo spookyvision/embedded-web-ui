@@ -16,6 +16,7 @@ const charts = {};
 const sample = [0, 99, 20, 3, 4, 5, 60, 7, 0, 99, 2, 3, 4, 5, 6, 7, 0, 1, 2, 3, 4, 5, 6, 7, 0, 1, 2, 99, 4, 5, 6, 7, 0, 1, 2, 3, 4, 5, 6, 7, 0, 1, 2, 3, 4, 5, 6, 7, 0, 1, 2, 3, 4, 5, 6, 7, 0, 1, 2, 3, 4, 5, 6, 7];
 
 function init_chart(id) {
+    if (charts[id] != null) { return; }
     const svg = d3.select('#bar-chart-' + id);
     const chart = svg.append('g')
         .attr('transform', `translate(${margin}, ${margin})`);

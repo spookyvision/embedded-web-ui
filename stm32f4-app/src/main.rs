@@ -7,29 +7,34 @@ use defmt::{panic, *};
 use defmt_rtt as _;
 use embassy_executor::Spawner;
 use embassy_stm32::{
+    gpio::{Level, Output, Speed},
     interrupt,
+    peripherals::PC13,
     time::mhz,
     usb_otg::{Driver, Instance},
     Config,
 };
+use embassy_time::{Duration, Timer};
 use embassy_usb::{
     class::cdc_acm::{CdcAcmClass, State},
     driver::EndpointError,
     Builder,
 };
-use embedded_web_ui::{Command, Input, Widget, WidgetKind, UI};
+use embedded_web_ui::{BarData, Command, Input, Widget, WidgetKind, CHART_BARS, UI};
 use futures::future::join;
 use panic_probe as _;
 
 #[embassy_executor::main]
 async fn main(_spawner: Spawner) {
-    info!("Hello World!");
+    info!("ohai");
 
     let mut config = Config::default();
     config.rcc.pll48 = true;
     config.rcc.sys_ck = Some(mhz(48));
 
     let p = embassy_stm32::init(config);
+
+    let mut led = Output::new(p.PC13, Level::High, Speed::Low);
 
     // Create the driver, from the HAL.
     let irq = interrupt::take!(OTG_FS);
@@ -77,18 +82,18 @@ async fn main(_spawner: Spawner) {
     let usb_fut = usb.run();
 
     // Do stuff with the class!
-    let echo_fut = async {
+    let work_fut = async {
         loop {
             class.wait_connection().await;
             info!("Connected");
-            let _ = echo(&mut class).await;
+            let _ = work(&mut class, &mut led).await;
             info!("Disconnected");
         }
     };
 
     // Run everything concurrently.
     // If we had made everything `'static` above instead, we could do this using separate tasks instead.
-    join(usb_fut, echo_fut).await;
+    join(usb_fut, work_fut).await;
 }
 
 struct Disconnected {}
@@ -102,45 +107,122 @@ impl From<EndpointError> for Disconnected {
     }
 }
 
-async fn echo<'d, T: Instance + 'd>(
+async fn write_chunked<'d, T: Instance + 'd>(
+    data: &[u8],
     class: &mut CdcAcmClass<'d, Driver<'d, T>>,
 ) -> Result<(), Disconnected> {
-    let mut ui: heapless::Vec<_, 6> = heapless::Vec::new();
-    ui.extend([
+    let (chunks, rest) = data.as_chunks::<64>();
+    for chunk in chunks {
+        class.write_packet(chunk).await?;
+    }
+    class.write_packet(rest).await?;
+    Ok(())
+}
+
+async fn work<'d, T: Instance + 'd>(
+    class: &mut CdcAcmClass<'d, Driver<'d, T>>,
+    led: &mut Output<'_, PC13>,
+) -> Result<(), Disconnected> {
+    let ui = [
         Command::Reset,
         Widget {
             kind: WidgetKind::Button,
-            label: "oh,aye".into(),
+            label: "LED on".into(),
             id: 1,
+        }
+        .into(),
+        Widget {
+            kind: WidgetKind::Button,
+            label: "LED off".into(),
+            id: 2,
+        }
+        .into(),
+        Widget {
+            kind: WidgetKind::Button,
+            label: "give data".into(),
+            id: 3,
         }
         .into(),
         UI::Break.into(),
         Widget {
             kind: WidgetKind::Slider,
             label: "slidos".into(),
-            id: 2,
+            id: 4,
         }
         .into(),
         UI::Break.into(),
         Widget {
             kind: WidgetKind::BarChart,
             label: "a bar chart".into(),
-            id: 3,
+            id: 5,
         }
         .into(),
-    ]);
+    ];
 
-    let mut ui_buf = [0; 64];
-    let ser = postcard::to_slice_cobs(&ui, &mut ui_buf).unwrap();
+    // give USB setup some time to settle
+    Timer::after(Duration::from_secs(1)).await;
+
+    let seed = [0, 1, 3, 3, 7, 0, 0, 0];
+    let mut rng = WyRng::from_seed(seed);
+
+    let mut ser_buf = [0; 96];
+    let ser = postcard::to_slice_cobs(ui.as_slice(), &mut ser_buf).unwrap();
+    // class.write_packet(ser).await?;
+    write_chunked(&ser, class).await?;
 
     let mut buf = [0; 64];
+
     loop {
         let n = class.read_packet(&mut buf).await?;
         let data = &mut buf[..n];
         match postcard::from_bytes_cobs::<Input>(data) {
-            Ok(input) => info!("got {}", input),
+            Ok(input) => {
+                info!("got {}", input);
+                match input {
+                    // refresh hack
+                    Input::Click(0) => {
+                        let ser = postcard::to_slice_cobs(ui.as_slice(), &mut ser_buf).unwrap();
+                        write_chunked(&ser, class).await?;
+                    }
+                    Input::Click(1) => {
+                        led.set_low();
+                    }
+                    Input::Click(2) => {
+                        led.set_high();
+                    }
+                    Input::Click(3) => {
+                        for _ in 0..10 {
+                            let vals = random_chart_data(&mut rng);
+                            let commands = [Command::BarData(BarData { id: 5, vals })];
+
+                            match postcard::to_slice_cobs(commands.as_slice(), &mut ser_buf) {
+                                Ok(ser) => {
+                                    write_chunked(&ser, class).await?;
+                                }
+                                Err(e) => {
+                                    error!("no! {}", e)
+                                }
+                            }
+                            Timer::after(Duration::from_millis(200)).await;
+                        }
+                    }
+                    Input::Slider(_, _) => {}
+                    _ => {}
+                }
+            }
             Err(_) => info!("gotnt!"),
         }
-        class.write_packet(ser).await?;
     }
+}
+
+use rand_core::{RngCore, SeedableRng};
+use wyhash::WyRng;
+
+fn random_chart_data(rng: &mut WyRng) -> heapless::Vec<u8, CHART_BARS> {
+    let mut vals = heapless::Vec::new();
+    for _ in 0..CHART_BARS / 8 {
+        let r = rng.next_u64();
+        vals.extend(r.to_le_bytes());
+    }
+    vals
 }

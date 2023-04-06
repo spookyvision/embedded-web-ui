@@ -46,4 +46,6 @@ finally, connect the serial device and enjoy your remote UI!
 
 ## example stm32f4 app
 
-extremely proof of concept only, to avoid collisions between usb setup and app code it waits for a UI Input packet before sending out its UI commands, but that's absolutely not a general requirement. Because of this limitation though you need to press a dummy button in the web app once before the actual UI appears.
+(extremely proof of concept only - do not take as reference implementation!)
+- toggles board LED
+- sends random chart data when requested 

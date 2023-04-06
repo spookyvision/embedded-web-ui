@@ -62,7 +62,9 @@ embedded-storage = "0.3.0"
 micromath = "2.0.0"
 static_cell = "1.0"
 embedded-web-ui = { path = "..", features = ["defmt"] }
-postcard = { version = "1.0.4" }
+postcard = { version = "1.0.4", features = ["use-defmt"] }
+wyhash = "0.5.0"
+rand_core = "0.6.4"
 
 [profile.release]
 debug = 2

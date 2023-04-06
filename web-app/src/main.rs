@@ -1,18 +1,43 @@
 #![allow(non_snake_case)]
+
 use dioxus::{prelude::*, };
 use dioxus_websocket_hooks::{use_ws_context_provider, Message, use_ws_context};
-use embedded_web_ui::{ Command, UI, WidgetKind, Widget, Input};
+use embedded_web_ui::{ Command, UI, WidgetKind, Widget, Input, Id};
 use futures::stream::StreamExt;
 mod components;
 use components::*;
 use gloo::timers::future::TimeoutFuture;
-use log::{debug, error};
+use im_rc::HashSet;
+use log::{debug, error, info};
+use wasm_bindgen::prelude::wasm_bindgen;
 fn main() {
     wasm_logger::init(wasm_logger::Config::default());
     console_error_panic_hook::set_once();
 
     dioxus_web::launch(app);
 }
+
+
+#[wasm_bindgen]
+extern "C" {
+    #[wasm_bindgen]
+    fn btoa(s: &str) -> String;
+}
+
+
+#[wasm_bindgen]
+extern "C" {
+    #[wasm_bindgen]
+    fn init_chart(id: Id);
+}
+
+
+#[wasm_bindgen]
+extern "C" {
+    #[wasm_bindgen]
+    fn update(id: Id, data: Vec<u8>);
+}
+
 
 fn use_ws_context_provider_binary(
     cx: &ScopeState,
@@ -32,11 +57,18 @@ fn use_ws_context_provider_binary(
 
 
 fn app(cx: Scope) -> Element {
+    debug!("hey");
+    let res = unsafe {
+         btoa("awerawreawre")
+    };
+    debug!("hey {res}");
     let slider_vars = use_state(&cx, SliderVars::default);
 
+
+    // TODO use im_rc
     let ui_items = use_state(cx, || {
         let res: Vec<UI> = vec![
-            UI::Widget(Widget{kind: WidgetKind::Button, label: "heyooooo".into(), id: 1}),
+            UI::Widget(Widget{kind: WidgetKind::Button, label: "plz refresh".into(), id: 0}),
             ];
         res
     });
@@ -59,33 +91,36 @@ fn app(cx: Scope) -> Element {
         },
     )
     .to_owned();
-
+    
     let ws = use_ws_context_provider_binary(cx, "ws://localhost:3030", {
         to_owned![ui_items]; 
         move |mut d|  {
-            debug!("? {}", d.len());
             if let Ok(commands) = postcard::from_bytes_cobs::<Vec<Command>>(d.as_mut_slice()) {
-                debug!("? {commands:?}");
                 for command in commands {
                     match command {
                         Command::Log => todo!(),
                         Command::Reset => {
+                            info!("RESET");
                             ui_items.modify(|_| vec![]);
                         },
                         Command::UI(ui) => {
-                            debug!("uiiii {ui:?}");
                             update_ui.send(ui)
                         },
                         Command::TimeSeriesData(_) => todo!(),
-                        Command::BarData(_) => todo!(),
+                        Command::BarData(data) => {
+                            let id = data.id;
+                            init_chart(data.id);
+                            debug!("got bar data {data:?}");
+                            let mut res = vec![];
+                            res.extend(&data.vals);
+                            update(data.id, res);
+                        },
                     }
                 } 
             }
             }
         });
     let ws_cx = use_ws_context(&cx);
-
-
 
     cx.render(rsx! (
         div {
@@ -100,10 +135,12 @@ fn app(cx: Scope) -> Element {
                         match widget.kind {
                             WidgetKind::TimeSeriesChart => rsx!{"TimeSeriesChart"},
 
-                            WidgetKind::BarChart => rsx!(BarChart {
-                                id: format!("bar-chart-{id}"),
-                                name: label.to_string()
-                            }),
+                            WidgetKind::BarChart => {
+                                rsx!(BarChart {
+                                    id: format!("bar-chart-{id}"),
+                                    name: label.to_string()
+                                })
+                            },
 
                             WidgetKind::Button => rsx!( button {
                                 //key: "{id}",
