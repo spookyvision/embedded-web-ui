@@ -19,7 +19,14 @@ embedded-web-ui = { path = "..", features = ["std"] }
 # WebAssembly Debug
 wasm-logger = "0.2.0"
 console_error_panic_hook = "0.1.7"
-dioxus-websocket-hooks = { path = "/Users/ace/play/co/dioxus-websocket-hooks" }
+
+dioxus-websocket-hooks = { git = "https://github.com/spookyvision/dioxus-websocket-hooks.git" }
+
+defmt-decoder = { git = "https://github.com/spookyvision/defmt.git", features = [
+    "unstable",
+] }
+
+
 postcard = { version = "1.0.4", features = ["use-std"] }
 serde = { version = "1.0.159", default_features = false, features = ["derive"] }
 futures = "0.3.28"
