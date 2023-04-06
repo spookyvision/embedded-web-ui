@@ -7,6 +7,7 @@ pub type Id = u16;
 pub type ChartTime = u16;
 pub type ChartVal = u8;
 pub type SliderVal = u8;
+pub const CHART_BARS: usize = 64;
 
 #[derive(Serialize, Deserialize)]
 #[cfg_attr(feature = "std", derive(Debug))]
@@ -49,7 +50,7 @@ pub struct TimeSeriesData {
 #[cfg_attr(feature = "defmt", derive(Format))]
 pub struct BarData {
     pub id: Id,
-    pub vals: heapless::Vec<ChartVal, 64>,
+    pub vals: heapless::Vec<ChartVal, CHART_BARS>,
 }
 
 #[derive(Serialize, Deserialize)]
