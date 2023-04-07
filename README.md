@@ -23,16 +23,22 @@ $ cargo run
 $ cargo run -- /dev/cu.usbserial1234
 ```
 
-**TODO add more convenient dev server option**
 
 now, start the web server:
 
+(**TODO add more convenient dev server option** by providing a prebuilt app)
+
 ```sh
-# once
-$ cargo install dioxus-cli
+# once: install dioxus CLI
+# you can use `cargo install dioxus-cli` when these fixes have made it to the release version:
+# https://github.com/DioxusLabs/cli/pull/122
+# https://github.com/DioxusLabs/cli/pull/130
+$ cargo install --git https://github.com/spookyvision/dioxus-cli --branch patch-1
 
 $ cd web-app
-$ dioxus serve
+$ dioxus serve --features postcard # for Rust applications
+# or
+$ dioxus serve --features json # for e.g. micropython/circuitpython
 
 # open in browser: http://localhost:8080/
 ```
@@ -49,3 +55,14 @@ finally, connect the serial device and enjoy your remote UI!
 (extremely proof of concept only - do not take as reference implementation!)
 - toggles board LED
 - sends random chart data when requested 
+
+## notes on JSON
+
+The serial/ws bridge is largely content agnostic but assumes packets sent from the serial device are framed/terminated with nullbytes. 
+The other direction doesn't need such a separator, since WebSockets are already framed.
+
+In practice this means:
+- postcard COBS encoding is fine to transmit as-is
+- other COBS encodings might need an explicit `\0` appended, since it's strictly speaking not part of the actual payload
+- JSON data needs to be terminated with an explicit `\0`
+- any other data is fine, as long as it does not contain `\0` except for framing. The web app currently only supports decoding JSON and postcard-cobs, though. See `web-app/src/ser_de.rs` for details.

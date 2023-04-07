@@ -12,9 +12,11 @@ exclude = ["ws-py", "cipy-app", "stm32f4-app"]
 defmt = { version = "=0.3.2", optional = true }
 heapless = { version = "0.7", default-features = false, features = [
     "defmt-impl",
+    "serde",
 ] }
 serde = { version = "1", default_features = false, features = ["derive"] }
 postcard = { version = "1.0.4", features = ["use-std"], optional = true }
+serde_json = { version = "1", optional = true }
 
 [dev-dependencies]
 postcard = { version = "1.0.4", features = ["use-std"] }
@@ -23,6 +25,7 @@ postcard = { version = "1.0.4", features = ["use-std"] }
 std = []
 defmt = ["dep:defmt"]
 postcard = ["dep:postcard"]
+json = ["dep:serde_json"]
 
 [[bin]]
 name = "sizes"

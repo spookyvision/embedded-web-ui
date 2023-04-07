@@ -1,23 +1,25 @@
 #![allow(non_snake_case)]
 
+use components::*;
 use defmt_handler::DefmtLogger;
 use dioxus::prelude::*;
 use dioxus_websocket_hooks::{use_ws_context, use_ws_context_provider, Message};
 use embedded_web_ui::{Command, Id, Input, Log, Widget, WidgetKind, UI};
 use futures::stream::StreamExt;
-mod components;
-use components::*;
 use im_rc::HashSet;
 use log::{debug, error, info};
 use wasm_bindgen::prelude::wasm_bindgen;
+use web_app::ser_de::{decode, encode};
+
+mod components;
+mod defmt_handler;
+
 fn main() {
     wasm_logger::init(wasm_logger::Config::default());
     console_error_panic_hook::set_once();
 
     dioxus_web::launch(app);
 }
-
-mod defmt_handler;
 
 #[wasm_bindgen]
 extern "C" {
@@ -97,7 +99,7 @@ fn app(cx: Scope) -> Element {
     let ws = use_ws_context_provider_binary(cx, "ws://localhost:3030", {
         to_owned![ui_items, charts, logger];
         move |mut d| {
-            if let Ok(commands) = postcard::from_bytes_cobs::<Vec<Command>>(d.as_mut_slice()) {
+            if let Ok(commands) = decode::<Vec<Command>>(d.as_mut_slice()) {
                 for command in commands {
                     match command {
                         Command::Log(log) => handle_log(&logger, log),
@@ -156,7 +158,7 @@ fn app(cx: Scope) -> Element {
                                 onclick: move |ev| {
                                     log::debug!("click {id}");
                                     let input = Input::Click(id);
-                                    ws_cx.send(Message::Bytes(postcard::to_allocvec_cobs(&input).unwrap()));
+                                    ws_cx.send(Message::Bytes(encode(&input).unwrap()));
                                     ev.stop_propagation();
                                 },
                                 "{label}"}),

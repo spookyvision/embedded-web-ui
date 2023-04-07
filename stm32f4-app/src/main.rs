@@ -167,7 +167,6 @@ async fn work<'d, T: Instance + 'd>(
 
     let mut ser_buf = [0; 96];
     let ser = postcard::to_slice_cobs(ui.as_slice(), &mut ser_buf).unwrap();
-    // class.write_packet(ser).await?;
     write_chunked(&ser, class).await?;
 
     let mut buf = [0; 64];

@@ -3,6 +3,8 @@ use dioxus_websocket_hooks::{use_ws_context, Message};
 use embedded_web_ui::{Id, Input, SliderVal};
 pub(crate) type SliderVars = im_rc::HashMap<String, f32>;
 
+use web_app::ser_de::encode;
+
 #[allow(non_snake_case)]
 #[inline_props]
 pub(crate) fn UiSlider(cx: Scope, id: Id, name: String, vars: UseState<SliderVars>) -> Element {
@@ -22,7 +24,7 @@ pub(crate) fn UiSlider(cx: Scope, id: Id, name: String, vars: UseState<SliderVar
                     vars.insert(name.clone(), new_val);
                 });
                 let input = Input::Slider(*id, (new_val * SliderVal::MAX as f32) as SliderVal);
-                ws_cx.send(Message::Bytes(postcard::to_allocvec_cobs(&input).unwrap()));
+                ws_cx.send(Message::Bytes(encode(&input).unwrap()));
             }
         }
         label { r#for: "{name}", "{name}" }
