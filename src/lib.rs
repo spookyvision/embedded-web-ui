@@ -24,16 +24,17 @@ type Payload = Vec<u8>;
 #[derive(Serialize, Deserialize, Clone, PartialEq, Eq)]
 #[cfg_attr(feature = "std", derive(Debug, Hash))]
 #[cfg_attr(all(feature = "defmt", not(feature = "std")), derive(Format))]
-pub enum Log {
-    Elf(Payload),
-    Packet(Payload),
+pub enum Log<'a> {
+    Elf(&'a [u8]),
+    Packet(&'a [u8]),
 }
 
 #[derive(Serialize, Deserialize, Clone, PartialEq, Eq)]
 #[cfg_attr(feature = "std", derive(Debug, Hash))]
 #[cfg_attr(all(feature = "defmt", not(feature = "std")), derive(Format))]
-pub enum Command {
-    Log(Log),
+pub enum Command<'a> {
+    #[serde(borrow)]
+    Log(Log<'a>),
     Reset,
     UI(UI),
     TimeSeriesData(TimeSeriesData),
@@ -99,13 +100,13 @@ pub enum WidgetKind {
     Slider,
 }
 
-impl From<Widget> for Command {
+impl<'a> From<Widget> for Command<'a> {
     fn from(value: Widget) -> Self {
         Command::UI(UI::Widget(value))
     }
 }
 
-impl From<UI> for Command {
+impl<'a> From<UI> for Command<'a> {
     fn from(value: UI) -> Self {
         match value {
             UI::Widget(w) => w.into(),

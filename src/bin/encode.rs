@@ -11,9 +11,8 @@ pub fn main() -> Result<(), Box<dyn std::error::Error>> {
         .ok_or(std::io::Error::new(ErrorKind::Other, "need a file name"))?;
     let content = std::fs::read(path)?;
 
-    let content = vec![Command::Log(Log::Elf(content))];
-    let ser = postcard::to_allocvec_cobs(&content)?;
-
+    let commands = vec![Command::Log(Log::Elf(&content))];
+    let ser = postcard::to_allocvec_cobs(&commands)?;
     io::stdout().write_all(&ser)?;
     Ok(())
 }

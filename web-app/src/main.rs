@@ -16,6 +16,8 @@ mod defmt_handler;
 
 fn main() {
     wasm_logger::init(wasm_logger::Config::default());
+    // suppress dioxus logging - TODO needs more love
+    // wasm_logger::init(wasm_logger::Config::default().module_prefix("web-app"));
     console_error_panic_hook::set_once();
 
     dioxus_web::launch(app);
@@ -51,10 +53,16 @@ fn use_ws_context_provider_binary(cx: &ScopeState, url: &str, handler: impl Fn(V
     use_ws_context_provider(cx, url, handler)
 }
 
+// TODO UseRef isn't optimal, `with_mut` causes Dioxus to rerender. What to do…
 fn handle_log(logger: &UseRef<Option<DefmtLogger>>, log: Log) {
     match log {
         Log::Elf(elf) => {
-            debug!("creating new log handler");
+            log::warn!(
+                "very probably UB around here, this vec clone fixes broken elf data down the line"
+            );
+            let elf: Vec<u8> = elf.into();
+            let hash = md5::compute(&elf);
+            debug!("creating new log handler {} {:?}", elf.len(), hash);
             logger.with_mut(|logger| *logger = defmt_handler::DefmtLogger::new(&elf))
         }
         Log::Packet(chunk) => {
@@ -111,7 +119,9 @@ fn app(cx: Scope) -> Element {
                         Command::UI(ui) => {
                             update_ui.send(ui.clone());
                         }
-                        Command::TimeSeriesData(_) => todo!(),
+                        Command::TimeSeriesData(data) => {
+                            debug!("time series data: {data:?}");
+                        }
                         Command::BarData(data) => {
                             let id = data.id;
 
