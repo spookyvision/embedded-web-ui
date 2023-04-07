@@ -1,7 +1,5 @@
 #![allow(non_snake_case)]
 
-use std::cell::Ref;
-
 use defmt_handler::DefmtLogger;
 use dioxus::prelude::*;
 use dioxus_websocket_hooks::{use_ws_context, use_ws_context_provider, Message};
@@ -53,7 +51,10 @@ fn use_ws_context_provider_binary(cx: &ScopeState, url: &str, handler: impl Fn(V
 
 fn handle_log(logger: &UseRef<Option<DefmtLogger>>, log: Log) {
     match log {
-        Log::Elf(elf) => logger.with_mut(|logger| *logger = defmt_handler::DefmtLogger::new(&elf)),
+        Log::Elf(elf) => {
+            debug!("creating new log handler");
+            logger.with_mut(|logger| *logger = defmt_handler::DefmtLogger::new(&elf))
+        }
         Log::Packet(chunk) => {
             logger.with_mut(|logger| match logger {
                 Some(logger) => {
@@ -113,7 +114,6 @@ fn app(cx: Scope) -> Element {
                             let id = data.id;
 
                             if !charts.read().contains(&id) {
-                                debug!("bcsssss");
                                 charts.with_mut(|charts| charts.insert(id));
                                 init_chart(id);
                             }
@@ -123,6 +123,8 @@ fn app(cx: Scope) -> Element {
                         }
                     }
                 }
+            } else {
+                log::warn!("got garbage")
             }
         }
     });

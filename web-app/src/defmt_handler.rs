@@ -6,6 +6,12 @@ use log::{error, warn};
 
 type LocationInfo = (Option<String>, Option<u32>, Option<String>);
 
+// TODO unscrew this massive self-referential screwup by fixing `StreamDecoder`
+// James:
+// I mean I'd probably say it could be AsRef<Table> instead of &Table
+// then you could give it an arc or box or reference or owned type and it should all work
+// https://play.rust-lang.org/?version=stable&mode=debug&edition=2021&gist=907d188ca0b8303b67ef05109b653b7a
+
 pub(crate) struct DefmtLogger {
     inner: DefmtSelfRef,
 }

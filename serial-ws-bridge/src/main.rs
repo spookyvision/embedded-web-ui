@@ -1,7 +1,5 @@
-use futures::{
-    stream::{Forward, StreamExt},
-    SinkExt, TryStreamExt,
-};
+use bytes::Bytes;
+use futures::{stream::StreamExt, SinkExt, TryStreamExt};
 use listenfd::ListenFd;
 use pretty_hex::pretty_hex;
 use sender_sink::wrappers::UnboundedSenderSink;
@@ -36,7 +34,7 @@ use tracing::{debug, error, info, warn};
 use axum::{
     extract::{
         ws::{self, Message, WebSocket, WebSocketUpgrade},
-        Extension, TypedHeader,
+        DefaultBodyLimit, Extension, TypedHeader,
     },
     headers::UserAgent,
     http::{
@@ -44,7 +42,7 @@ use axum::{
         Method,
     },
     response::IntoResponse,
-    routing::get,
+    routing::{get, post},
     Router,
 };
 
@@ -120,6 +118,9 @@ async fn main() -> eyre::Result<()> {
     let _serial_task = tokio::spawn(uart_launcher_loop(serial_dev, app_state.clone()));
     let app = Router::new()
         .route("/", get(websocket_handler))
+        .route("/backdoor", post(backdoor_handler))
+        // ELF or whatever else you want to upload size limit
+        .layer(DefaultBodyLimit::max(15 * 1024 * 1024))
         .layer(Extension(app_state.clone()))
         // logging so we can see whats going on
         .layer(
@@ -150,6 +151,18 @@ async fn main() -> eyre::Result<()> {
     Ok(())
 }
 
+async fn backdoor_handler(
+    TypedHeader(user_agent): TypedHeader<UserAgent>,
+    Extension(state): Extension<Arc<AppState>>,
+    body: Bytes,
+) -> impl IntoResponse {
+    let msg = pretty_hex(&body);
+    debug!("got a sneaky update");
+    match state.to_websocket.send(body.into()) {
+        Ok(_) => "OK",
+        Err(_) => "nobody home?",
+    }
+}
 async fn websocket_handler(
     TypedHeader(user_agent): TypedHeader<UserAgent>,
     ws: WebSocketUpgrade,
