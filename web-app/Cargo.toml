@@ -31,3 +31,5 @@ postcard = { version = "1.0.4", features = ["use-std"] }
 serde = { version = "1.0.159", default_features = false, features = ["derive"] }
 futures = "0.3.28"
 wasm-bindgen = "0.2.84"
+anyhow = "1.0.70"
+ouroboros = "0.15.6"

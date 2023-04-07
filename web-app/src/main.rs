@@ -1,12 +1,14 @@
 #![allow(non_snake_case)]
 
+use std::cell::Ref;
+
+use defmt_handler::DefmtLogger;
 use dioxus::prelude::*;
 use dioxus_websocket_hooks::{use_ws_context, use_ws_context_provider, Message};
-use embedded_web_ui::{Command, Id, Input, Widget, WidgetKind, UI};
+use embedded_web_ui::{Command, Id, Input, Log, Widget, WidgetKind, UI};
 use futures::stream::StreamExt;
 mod components;
 use components::*;
-use gloo::timers::future::TimeoutFuture;
 use im_rc::HashSet;
 use log::{debug, error, info};
 use wasm_bindgen::prelude::wasm_bindgen;
@@ -16,6 +18,8 @@ fn main() {
 
     dioxus_web::launch(app);
 }
+
+mod defmt_handler;
 
 #[wasm_bindgen]
 extern "C" {
@@ -47,7 +51,24 @@ fn use_ws_context_provider_binary(cx: &ScopeState, url: &str, handler: impl Fn(V
     use_ws_context_provider(cx, url, handler)
 }
 
+fn handle_log(logger: &UseRef<Option<DefmtLogger>>, log: Log) {
+    match log {
+        Log::Elf(elf) => logger.with_mut(|logger| *logger = defmt_handler::DefmtLogger::new(&elf)),
+        Log::Packet(chunk) => {
+            logger.with_mut(|logger| match logger {
+                Some(logger) => {
+                    if let Err(e) = logger.received(&chunk) {
+                        log::error!("logger: {e:?}");
+                    }
+                }
+                None => log::warn!("received log packet but do not have a logger"),
+            });
+        }
+    }
+}
+
 fn app(cx: Scope) -> Element {
+    let logger = use_ref(cx, || None);
     // TODO use_ref, remove im_rc
     let slider_vars = use_state(&cx, SliderVars::default);
     let charts = use_ref(cx, || HashSet::new());
@@ -73,12 +94,12 @@ fn app(cx: Scope) -> Element {
     .to_owned();
 
     let ws = use_ws_context_provider_binary(cx, "ws://localhost:3030", {
-        to_owned![ui_items, charts];
+        to_owned![ui_items, charts, logger];
         move |mut d| {
             if let Ok(commands) = postcard::from_bytes_cobs::<Vec<Command>>(d.as_mut_slice()) {
                 for command in commands {
                     match command {
-                        Command::Log => todo!(),
+                        Command::Log(log) => handle_log(&logger, log),
                         Command::Reset => {
                             info!("RESET");
                             charts.with_mut(|charts| charts.clear());

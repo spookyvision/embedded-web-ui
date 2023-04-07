@@ -1,7 +1,9 @@
 #![cfg_attr(not(any(test, feature = "std")), no_std)]
 
+// TODO defmt & std are mutually exclusive, should somehow express this
 #[cfg(feature = "defmt")]
 use defmt::Format;
+
 use serde::{Deserialize, Serialize};
 pub type Id = u16;
 pub type ChartTime = u16;
@@ -9,11 +11,25 @@ pub type ChartVal = u8;
 pub type SliderVal = u8;
 pub const CHART_BARS: usize = 64;
 
+// experimental
+#[cfg(not(feature = "std"))]
+type Payload = heapless::Vec<u8, 1>; // TODO dummy just so the field is there. James: will this break?
+#[cfg(feature = "std")]
+type Payload = Vec<u8>;
+
 #[derive(Serialize, Deserialize, Clone, PartialEq, Eq)]
 #[cfg_attr(feature = "std", derive(Debug, Hash))]
-#[cfg_attr(feature = "defmt", derive(Format))]
+#[cfg_attr(all(feature = "defmt", not(feature = "std")), derive(Format))]
+pub enum Log {
+    Elf(Payload),
+    Packet(Payload),
+}
+
+#[derive(Serialize, Deserialize, Clone, PartialEq, Eq)]
+#[cfg_attr(feature = "std", derive(Debug, Hash))]
+#[cfg_attr(all(feature = "defmt", not(feature = "std")), derive(Format))]
 pub enum Command {
-    Log, // TODO - defmt payload goes here
+    Log(Log),
     Reset,
     UI(UI),
     TimeSeriesData(TimeSeriesData),

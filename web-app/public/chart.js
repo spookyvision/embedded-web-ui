@@ -42,7 +42,6 @@ function update(id, data) {
 
     const chart = charts[id];
 
-    console.log("updateeeeee", id);
     const barGroups = chart.selectAll('rect')
         .data(data);
 
