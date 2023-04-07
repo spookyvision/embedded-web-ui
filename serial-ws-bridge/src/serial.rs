@@ -29,27 +29,21 @@ impl Encoder<Vec<u8>> for NullSepCodec {
 }
 
 pub(crate) fn open_tty(arg: Option<String>) -> eyre::Result<SerialStream> {
-    // try to be smart about OS dependent device names... but why, there's available_ports()
-    // #[cfg(target_os = "linux")]
-    // let default = "/dev/ttyUSB*";
-    // #[cfg(target_os = "macos")]
-    // let default = "/dev/cu.usb*";
-    // #[cfg(target_os = "windows")]
-    // let default = "COM1";
-
-    // let tty_pattern = arg.as_deref().unwrap_or_else(|| default);
-    // for candidate in glob::glob(tty_pattern)? {
-    //     match &candidate {
-
-    let ports = match arg {
-        Some(port) => vec![port],
-
-        // filter out macos builtin bluetooth "ports"
-        None => tokio_serial::available_ports()?
+    // filter out macos builtin bluetooth "ports"
+    let available_ports = tokio_serial::available_ports()?;
+    let auto_ports = || {
+        available_ports
             .iter()
             .map(|port| port.port_name.clone())
             .filter(|port| !port.to_lowercase().contains("bluetooth"))
-            .collect(),
+            .collect()
+    };
+
+    // ensure arg is not empty
+    let ports = match arg.as_deref() {
+        Some("") => auto_ports(),
+        Some(port) => vec![port.to_string()],
+        None => auto_ports(),
     };
 
     for port in ports {
