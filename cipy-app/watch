@@ -1,0 +1,2 @@
+#!/bin/sh
+fswatch -0 $@ | xargs -0 -I {} cp {} /Volumes/CIRCUITPY

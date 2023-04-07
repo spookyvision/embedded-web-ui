@@ -1,0 +1,54 @@
+[
+    "Reset",
+    {
+        "UI": {
+            "Widget": {
+                "kind": "Button",
+                "label": "LED on",
+                "id": 1
+            }
+        }
+    },
+    {
+        "UI": {
+            "Widget": {
+                "kind": "Button",
+                "label": "LED off",
+                "id": 2
+            }
+        }
+    },
+    {
+        "UI": {
+            "Widget": {
+                "kind": "Button",
+                "label": "give data",
+                "id": 3
+            }
+        }
+    },
+    {
+        "UI": "Break"
+    },
+    {
+        "UI": {
+            "Widget": {
+                "kind": "Slider",
+                "label": "slidos",
+                "id": 4
+            }
+        }
+    },
+    {
+        "UI": "Break"
+    },
+    {
+        "UI": {
+            "Widget": {
+                "kind": "BarChart",
+                "label": "a bar chart",
+                "id": 5
+            }
+        }
+    }
+]

@@ -5,7 +5,7 @@ edition = "2021"
 
 [workspace]
 members = ["web-app", "serial-ws-bridge"]
-exclude = ["ws-py", "stm32f4-app"]
+exclude = ["ws-py", "cipy-app", "stm32f4-app"]
 
 
 [dependencies]
