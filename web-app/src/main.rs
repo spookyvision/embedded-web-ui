@@ -7,7 +7,7 @@ use dioxus_websocket_hooks::{use_ws_context, use_ws_context_provider, Message};
 use embedded_web_ui::{Command, Id, Input, Log, Widget, WidgetKind, UI};
 use futures::stream::StreamExt;
 use im_rc::HashSet;
-use log::{debug, error, info};
+use log::{debug, error, info, warn};
 use wasm_bindgen::prelude::wasm_bindgen;
 use web_app::ser_de::{decode, encode};
 
@@ -61,10 +61,10 @@ fn handle_log(logger: &UseRef<Option<DefmtLogger>>, log: Log) {
             logger.with_mut(|logger| match logger {
                 Some(logger) => {
                     if let Err(e) = logger.received(&chunk) {
-                        log::error!("logger: {e:?}");
+                        error!("logger: {e:?}");
                     }
                 }
-                None => log::warn!("received log packet but do not have a logger"),
+                None => warn!("received log packet but do not have a logger"),
             });
         }
     }
@@ -96,7 +96,7 @@ fn app(cx: Scope) -> Element {
     })
     .to_owned();
 
-    let ws = use_ws_context_provider_binary(cx, "ws://localhost:3030", {
+    let _ws = use_ws_context_provider_binary(cx, "ws://localhost:3030", {
         to_owned![ui_items, charts, logger];
         move |mut d| {
             if let Ok(commands) = decode::<Vec<Command>>(d.as_mut_slice()) {
@@ -126,7 +126,7 @@ fn app(cx: Scope) -> Element {
                     }
                 }
             } else {
-                log::warn!("got garbage")
+                warn!("got garbage")
             }
         }
     });
@@ -156,7 +156,7 @@ fn app(cx: Scope) -> Element {
                             WidgetKind::Button => rsx!( button {
                                 //key: "{id}",
                                 onclick: move |ev| {
-                                    log::debug!("click {id}");
+                                    debug!("click {id}");
                                     let input = Input::Click(id);
                                     ws_cx.send(Message::Bytes(encode(&input).unwrap()));
                                     ev.stop_propagation();
@@ -172,8 +172,7 @@ fn app(cx: Scope) -> Element {
                             ),
                         }
                     },
-                    UI::Break => rsx!{ br{} },
-                    _ => rsx!{"TODO"}
+                    UI::Break => rsx!{ br{} }
                 })
             }
         }

@@ -4,14 +4,10 @@ use listenfd::ListenFd;
 use pretty_hex::pretty_hex;
 use sender_sink::wrappers::UnboundedSenderSink;
 use std::{
-    collections::HashMap,
     env,
     io::{self, ErrorKind},
     net::SocketAddr,
-    sync::{
-        atomic::{AtomicUsize, Ordering},
-        Arc, RwLock,
-    },
+    sync::Arc,
     time::Duration,
 };
 use tokio_serial::SerialStream;
@@ -19,7 +15,7 @@ use tokio_serial::SerialStream;
 use tokio::{
     sync::{
         broadcast,
-        mpsc::{self, UnboundedReceiver, UnboundedSender},
+        mpsc::{self, UnboundedSender},
     },
     time::sleep,
 };
@@ -49,10 +45,7 @@ use axum::{
 mod serial;
 
 type ServerMessage = Vec<u8>;
-type ToClientTx = UnboundedSender<ServerMessage>;
-type ToClientRx = UnboundedReceiver<ServerMessage>;
 struct AppState {
-    client_txs: RwLock<HashMap<usize, ToClientTx>>,
     to_websocket: broadcast::Sender<ServerMessage>,
     to_serial: broadcast::Sender<ServerMessage>,
     from_serial_tx: UnboundedSender<ServerMessage>,
@@ -64,24 +57,13 @@ impl AppState {
         from_serial_tx: UnboundedSender<ServerMessage>,
     ) -> Self {
         Self {
-            client_txs: Default::default(),
             to_websocket,
             to_serial,
             from_serial_tx,
         }
     }
-
-    fn add_client(&self, tx: ToClientTx) -> usize {
-        let client_id = NEXT_CLIENT_ID.fetch_add(1, Ordering::AcqRel);
-        self.client_txs.write().unwrap().insert(client_id, tx);
-        client_id
-    }
-    fn remove_client(&self, client_id: usize) {
-        self.client_txs.write().unwrap().remove(&client_id);
-    }
 }
 
-static NEXT_CLIENT_ID: AtomicUsize = AtomicUsize::new(1);
 #[tokio::main]
 async fn main() -> eyre::Result<()> {
     color_eyre::install()?;
@@ -152,11 +134,11 @@ async fn main() -> eyre::Result<()> {
 }
 
 async fn backdoor_handler(
-    TypedHeader(user_agent): TypedHeader<UserAgent>,
+    TypedHeader(_user_agent): TypedHeader<UserAgent>,
     Extension(state): Extension<Arc<AppState>>,
     body: Bytes,
 ) -> impl IntoResponse {
-    let msg = pretty_hex(&body);
+    let _msg = pretty_hex(&body);
     debug!("got a sneaky update");
     match state.to_websocket.send(body.into()) {
         Ok(_) => "OK",
@@ -171,11 +153,7 @@ async fn websocket_handler(
     debug!("User-Agent: {:?}", user_agent);
     ws.on_upgrade(|socket| do_websocket(socket, state, user_agent))
 }
-async fn do_websocket(stream: WebSocket, state: Arc<AppState>, user_agent: UserAgent) {
-    let (mut local_tx, local_rx) = mpsc::unbounded_channel();
-    let mut local_rx = UnboundedReceiverStream::new(local_rx);
-    let client_id = state.add_client(local_tx.clone());
-
+async fn do_websocket(stream: WebSocket, state: Arc<AppState>, _user_agent: UserAgent) {
     let (mut to_websocket_tx, mut from_websocket_rx) = stream.split();
 
     let to_websocket_rx = state.to_websocket.subscribe();
@@ -240,7 +218,7 @@ async fn do_websocket(stream: WebSocket, state: Arc<AppState>, user_agent: UserA
                 }
                 Some(Ok(client_message)) => {
                     let msg = pretty_hex(&client_message);
-                    debug!("ws[{client_id}]>serial: {msg}");
+                    debug!("ws>serial: {msg}");
 
                     // TODO ok()
                     to_serial_tx.send(client_message).ok();
@@ -256,9 +234,7 @@ async fn do_websocket(stream: WebSocket, state: Arc<AppState>, user_agent: UserA
         _ = (&mut recv_task) => send_task.abort(),
     };
 
-    debug!("disco {}", client_id);
-
-    state.remove_client(client_id);
+    debug!("client disconnected");
 }
 
 async fn uart_inner(
@@ -266,7 +242,7 @@ async fn uart_inner(
     to_serial_tx: broadcast::Sender<ServerMessage>,
     from_serial_tx: UnboundedSender<ServerMessage>,
 ) -> eyre::Result<()> {
-    let (tx, mut rx) = serial::NullSepCodec.framed(stream).split();
+    let (tx, rx) = serial::NullSepCodec.framed(stream).split();
     // TODO weird error stuff
     let to_serial_rx = BroadcastStream::new(to_serial_tx.subscribe()).map_err(|e| {
         let inner_error = format!("{e:?}");

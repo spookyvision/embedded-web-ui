@@ -12,7 +12,7 @@ impl Decoder for NullSepCodec {
     fn decode(&mut self, src: &mut BytesMut) -> Result<Option<Self::Item>, Self::Error> {
         let null = src.as_ref().iter().position(|b| *b == b'\0');
         if let Some(n) = null {
-            let mut chunk = src.split_to(n + 1);
+            let chunk = src.split_to(n + 1);
             return Ok(Some(chunk.into()));
         }
         Ok(None)
