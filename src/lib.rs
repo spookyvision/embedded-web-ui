@@ -12,6 +12,10 @@ pub type SliderVal = u8;
 pub const CHART_BARS: usize = 64;
 
 // experimental
+// I have this elsewhere as
+// pub enum FromMcu<'a> { LogChunk(&'a [u8]),
+// but don't want to deal with lifetimes right now
+
 #[cfg(not(feature = "std"))]
 type Payload = heapless::Vec<u8, 1>; // TODO dummy just so the field is there. James: will this break?
 #[cfg(feature = "std")]
