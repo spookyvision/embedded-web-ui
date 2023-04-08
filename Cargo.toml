@@ -4,7 +4,7 @@ version = "0.1.0"
 edition = "2021"
 
 [workspace]
-members = ["web-app", "serial-ws-bridge"]
+members = ["web-app", "serial-ws-bridge", "dummy-bridge"]
 exclude = ["ws-py", "cipy-app", "stm32f4-app"]
 
 
