@@ -53,33 +53,29 @@ fn use_ws_context_provider_binary(cx: &ScopeState, url: &str, handler: impl Fn(V
     use_ws_context_provider(cx, url, handler)
 }
 
-// TODO UseRef isn't optimal, `with_mut` causes Dioxus to rerender. What to do…
-fn handle_log(logger: &UseRef<Option<DefmtLogger>>, log: Log) {
+// TODO UseRef isn't optimal, (probably) `with_mut` causes Dioxus to rerender. What to do…
+fn handle_log(logger: &mut Option<DefmtLogger>, log: Log) {
     match log {
         Log::Elf(elf) => {
-            log::warn!(
-                "very probably UB around here, this vec clone fixes broken elf data down the line"
-            );
+            log::warn!("table decoder wants 4 byte aligned slice, report bug");
+            // clone to enforce alignment
             let elf: Vec<u8> = elf.into();
             let hash = md5::compute(&elf);
             debug!("creating new log handler {} {:?}", elf.len(), hash);
-            logger.with_mut(|logger| *logger = defmt_handler::DefmtLogger::new(&elf))
+            *logger = defmt_handler::DefmtLogger::new(&elf)
         }
-        Log::Packet(chunk) => {
-            logger.with_mut(|logger| match logger {
-                Some(logger) => {
-                    if let Err(e) = logger.received(&chunk) {
-                        error!("logger: {e:?}");
-                    }
+        Log::Packet(chunk) => match logger {
+            Some(logger) => {
+                if let Err(e) = logger.received(&chunk) {
+                    error!("logger: {e:?}");
                 }
-                None => warn!("received log packet but do not have a logger"),
-            });
-        }
+            }
+            None => warn!("received log packet but do not have a logger"),
+        },
     }
 }
 
 fn app(cx: Scope) -> Element {
-    let logger = use_ref(cx, || None);
     // TODO use_ref, remove im_rc
     let slider_vars = use_state(&cx, SliderVars::default);
     let charts = use_ref(cx, || HashSet::new());
@@ -105,12 +101,13 @@ fn app(cx: Scope) -> Element {
     .to_owned();
 
     let _ws = use_ws_context_provider_binary(cx, "ws://localhost:3030", {
-        to_owned![ui_items, charts, logger];
+        to_owned![ui_items, charts];
         move |mut d| {
+            let mut logger = None;
             if let Ok(commands) = decode::<Vec<Command>>(d.as_mut_slice()) {
                 for command in commands {
                     match command {
-                        Command::Log(log) => handle_log(&logger, log),
+                        Command::Log(log) => handle_log(&mut logger, log),
                         Command::Reset => {
                             info!("RESET");
                             charts.with_mut(|charts| charts.clear());
