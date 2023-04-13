@@ -5,7 +5,8 @@ import neopixel
 from rainbowio import colorwheel
 from time import sleep
 
-pixels = neopixel.NeoPixel(board.NEOPIXEL, 1)
+
+board_pixel = neopixel.NeoPixel(board.NEOPIXEL, 1)
 
 
 def to_components(i):
@@ -35,14 +36,14 @@ while True:
                 usb_cdc.data.write(data)
                 usb_cdc.data.write(b'\0')
             elif dec.get('Click') == 1:
-                pixels[0] = (10, 10, 10)
+                board_pixel[0] = (10, 10, 10)
             elif dec.get('Click') == 2:
-                pixels[0] = (0, 0, 0)
+                board_pixel[0] = (0, 0, 0)
             else:
                 slider = dec.get('Slider')
                 if slider is not None:
                     [idx, val] = slider
-                    pixels[0] = to_components(val)
+                    board_pixel[0] = to_components(val)
         except:
             print("decode error")
         bof = bof[split+1:]
