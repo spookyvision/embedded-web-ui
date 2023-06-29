@@ -110,6 +110,11 @@ fn app(cx: Scope) -> Element {
                         Command::Log(log) => handle_log(&mut logger, log),
                         Command::Reset => {
                             info!("RESET");
+                            // TODO: dioxus doesn't know we're messing with its nodes
+                            // -> it caches the graph state
+                            // -> graphs stay initialized
+                            // -> must be smarter about this, otherwise there will be leftovers
+                            // interesting corner case: data comes in before the chart has been rendered
                             charts.with_mut(|charts| charts.clear());
                             ui_items.with_mut(|items| items.clear());
                         }
@@ -121,7 +126,9 @@ fn app(cx: Scope) -> Element {
                         }
                         Command::BarData(data) => {
                             let id = data.id;
-
+                            // TODO this assumes the chart container is already present, which it might not be
+                            // (see `Command::Reset` comment above)
+                            // -> we can probably queue things up and consume inside useEffect
                             if !charts.read().contains(&id) {
                                 charts.with_mut(|charts| charts.insert(id));
                                 init_chart(id);
