@@ -6,6 +6,7 @@ Control an embedded application (or anything, really) using a browser, which tal
 
 https://github.com/spookyvision/embedded-web-ui/assets/45840/a1f33a06-5b54-44d1-8552-ea7130e319e5
 
+### FFT example (link to youtube):
 [![Live FFT chart sampled from microphone](https://img.youtube.com/vi/OVQCu2fmVps/0.jpg)](https://www.youtube.com/watch?v=OVQCu2fmVps)
 
 ## High level usage
