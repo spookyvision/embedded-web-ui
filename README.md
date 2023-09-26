@@ -2,7 +2,7 @@
 
 Remote web UI for embedded (Rust) applications. 
 Control an embedded application (or anything, really) using a browser, which talks to a websocket/serial bridge.
-
+Receive data back and plot in live charts.
 
 https://github.com/spookyvision/embedded-web-ui/assets/45840/a1f33a06-5b54-44d1-8552-ea7130e319e5
 
